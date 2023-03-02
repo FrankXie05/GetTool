@@ -10,16 +10,16 @@ from bs4 import BeautifulSoup
 import re
 
 # 邮件发送者和接收者
-sender = '1433351828@qq.com'
-recipient = 'x1433351828@gmail.com'
+sender = 'sender@qq.com'
+recipient = 'recipient@gmail.com'
 
 # QQ邮箱的SMTP服务器和端口号
 smtp_server = 'smtp.qq.com'
 smtp_port = 465
 
 # QQ邮箱的账号和授权码（注意不是邮箱密码）
-username = '1433351828@qq.com'
-password = 'otbbudbmsoifbaah'
+username = 'user@qq.com'
+password = 'xxxxxx'
 
 # 获取所有端口的链接
 url = 'https://github.com/microsoft/vcpkg/tree/master/ports'

@@ -22,7 +22,7 @@ def github_port() -> List[str]:
         links = soup.find_all('a', {'class': 'js-navigation-open Link--primary'})
 
         # 匹配所有端口的链接
-        port_names = ['3fd']
+        port_names = []
         for link in links:
             port_names.append(link['title'])
 

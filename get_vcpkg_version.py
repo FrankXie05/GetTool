@@ -29,4 +29,4 @@ def get_vcpkg_version(port_name:str) -> list:
         else:
             print(f"Failed to retrieve {json_url}.")
 
-    return content, vcpkg_data_list
+    return vcpkg_data_list

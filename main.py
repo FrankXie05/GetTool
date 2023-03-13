@@ -7,7 +7,7 @@ from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 from bs4 import BeautifulSoup
 import re
-from github_port import github_port
+from port_repo import port_repo
 from get_repo import get_repo
 from get_vcpkg_version import get_vcpkg_version
 
@@ -24,7 +24,7 @@ username = 'user@qq.com'
 password = 'xxxxxx'
 
 # 获取所有端口的链接
-url = 'https://github.com/microsoft/vcpkg/tree/master/ports'
+url = 'https://github.com/microsoft/vcpkg/tree/master/ports/'
 response = requests.get(url)
 
 if response.status_code == 200:
@@ -36,15 +36,12 @@ if response.status_code == 200:
     for link in links:
             port_name.append(link['title'])
 
-    # 调用get_vcpkg_version
-    content,vcpkg_data_list = get_vcpkg_version(port_name)
+    # 调用get_vcpkg_version返回vcpkg_data_list
+    vcpkg_data_list = get_vcpkg_version(port_name)
 
-    #调用github_repos
-    github_repos = github_port()
+    #调用get_repo返回content(portfile)
+    content = port_repo()
 
-    #调用get_repos
-    github_repo = get_repo(content)
-    
     # 将数据转换为表格
     vcpkg_version_df = pd.DataFrame(vcpkg_data_list)
     print(vcpkg_version_df)

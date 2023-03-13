@@ -5,7 +5,7 @@ from typing import List
 from get_repo import get_repo
 
 
-def github_port() -> List[str]:
+def port_repo() -> List[str]:
     """
     This function returns a list of all repositories found in vcpkg ports.
 
@@ -26,7 +26,7 @@ def github_port() -> List[str]:
         for link in links:
             port_names.append(link['title'])
 
-        github_repos = []
+        port_repos = []
         # 读取每个端口的portfile.cmake文件并提取GitHub仓库信息
         for port_name in port_names:
             portfile_url = 'https://raw.githubusercontent.com/microsoft/vcpkg/master/ports/' + port_name + '/portfile.cmake'
@@ -34,13 +34,12 @@ def github_port() -> List[str]:
 
             if port_response.status_code == 200:
                 content = port_response.content.decode('utf-8')
-                repo = get_repo(content)
+                repo = get_repo(port_name,content)
 
                 if repo:
-                        print(f"{port_name}: {get_repo.group(0)}")
-                        github_repos.append(repo)
+                        port_repos.append(repo)
 
-                return github_repos
+                return port_repos,content
     else:
         print(f"Failed ro retrieve {url}.")
         return []

@@ -7,9 +7,9 @@ from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 from bs4 import BeautifulSoup
 import re
-from port_repo import port_repo
-from get_repo import get_repo
-from get_vcpkg_version import get_vcpkg_version
+from get_download_url import get_download_url
+from check_download_url import check_download_url
+from get_port_info_vcpkg import get_port_info_vcpkg
 
 # 邮件发送者和接收者
 sender = 'sender@qq.com'
@@ -32,15 +32,15 @@ if response.status_code == 200:
     # 找到所有文件夹的链接
     links = soup.find_all('a', {'class': 'js-navigation-open Link--primary'})
     # 匹配所有端口的链接
-    port_name = []
+    port_names = []
     for link in links:
-            port_name.append(link['title'])
+            port_names.append(link['title'])
 
     # 调用get_vcpkg_version返回vcpkg_data_list
-    vcpkg_data_list = get_vcpkg_version(port_name)
+    vcpkg_data_list = get_port_info_vcpkg(url,port_names)
 
     #调用get_repo返回content(portfile)
-    content = port_repo()
+    port_url,content = get_download_url(url,port_names)
 
     # 将数据转换为表格
     vcpkg_version_df = pd.DataFrame(vcpkg_data_list)

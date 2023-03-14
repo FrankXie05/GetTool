@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup
 import re
 
 
-def get_repo(port_name,content: str) -> str:
+def check_download_url(port_names,content: str) -> str:
     """
     This function extracts the github repository information from a given string.
 
@@ -31,7 +31,7 @@ def get_repo(port_name,content: str) -> str:
         get_repo = re.search(r"vcpkg_download_distfile\(ARCHIVE\r\n", content)
         
     if get_repo:
-        print(f"{port_name}: {get_repo.group(0)}")
+        print(f"{port_names}: {get_repo.group(0)}")
         return get_repo
 
     return None

@@ -1,86 +1,152 @@
+from email import header
+from genericpath import isdir
+import subprocess
+import PyInstaller
+import shutil
+import openpyxl
+#with open('requirements.txt', 'r') as f:
+#    for line in f:
+#        package, version = line.strip().split('==')
+#        subprocess.call(['C:\Program Files (x86)\Microsoft Visual Studio\Shared\Python39_64\Scripts\pip.exe', 'install', f'{package}=={version}'])
 
 import requests
 import json
 import pandas as pd
 import smtplib
+import os
+import glob
+from git import Repo
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.application import MIMEApplication
 from bs4 import BeautifulSoup
+import win32com.client as win32
 import re
+from get_download_url import get_download_url
+from check_download_url import check_download_url
+from get_port_info_vcpkg import get_port_info_vcpkg
+from get_upstream_version import get_upstream_version
+from compare_version import compare_version
+from send_mail import send_email
 
-# 邮件发送者和接收者
-sender = 'sender@qq.com'
-recipient = 'recipient@gmail.com'
-
-# QQ邮箱的SMTP服务器和端口号
-smtp_server = 'smtp.qq.com'
-smtp_port = 465
-
-# QQ邮箱的账号和授权码（注意不是邮箱密码）
-username = 'user@qq.com'
-password = 'xxxxxx'
-
+# 用你自己的Access Token替换掉这里的<ACCESS_TOKEN>
+vcpkg_headers = {
+    'User-Agent': 'Mozilla/5.0',
+    'Authorization': 'token ',
+    'Accept': 'application/json'
+}
 # 获取所有端口的链接
-url = 'https://github.com/microsoft/vcpkg/tree/master/ports'
-response = requests.get(url)
+port_names = []
+total_data = []
 
+#Test
+port_names.extend(["wtl"])
+
+url = 'https://github.com/microsoft/vcpkg/tree/master/ports/'
+response = requests.get(url, headers=vcpkg_headers)
 if response.status_code == 200:
-    soup = BeautifulSoup(response.content, 'html.parser')
-    # 找到所有文件夹的链接
-    links = soup.find_all('a', {'class': 'js-navigation-open Link--primary'})
-    # 匹配所有端口的链接
-    port_name = []
-    for link in links:
-            port_name.append(link['title'])
+    # 检查本地是否有 vcpkg 仓库，如果没有则克隆
+    vcpkg_dir = os.path.join(os.getcwd(), 'vcpkg')
+    if not os.path.isdir(vcpkg_dir):
+        Repo.clone_from('https://github.com/Microsoft/vcpkg.git', vcpkg_dir)
+        print("Clone VCPKG Dond")   
 
-    # 读取每个端口的vcpkg.json文件并提取名称和版本信息
-    data_list = []
-    cont = 0
-    port_names = str(port_name)
-    for i, port_link in enumerate(port_name):
-        json_url = 'https://raw.githubusercontent.com/microsoft/vcpkg/master/ports/' + port_link + '/vcpkg.json'
-        json_response = requests.get(json_url)
-        if json_response.status_code == 200:
-            content = json_response.content.decode('utf-8')
-            data = json.loads(content)
-            if 'version' in data:
-                Version = data.get('version')
-            elif 'version-date' in data:
-                Version = data.get('version-date')
-            elif 'version-semver' in data:
-                Version = data.get('version-semver')
-            elif 'version-string' in data:
-                Version = data.get('version-string')
-            else:
-                Version = None
+    # 列出本地 vcpkg/ports 目录中的所有文件名
+    ports_dir = os.path.join(vcpkg_dir, 'ports')
 
-            name = data.get('name')
-            data_list.append({'Name': name, 'Version': Version})
-            cont ++ 1
-            print(f"{i+1}/{len(port_name)}: {port_link} Done")
-        else:
-            print(f"Failed to retrieve {json_url}.")
-    
-    # 将数据转换为表格
-    df = pd.DataFrame(data_list)
-    print(df)
+    if os.path.isdir(ports_dir):
+        for filepath in os.listdir(ports_dir):
+            port_names.append(filepath)
+        print(port_names)
 
-    # 创建邮件对象
-    msg = MIMEMultipart()
-    msg['From'] = sender
-    msg['To'] = recipient
-    msg['Subject'] = 'vcpkg.json 表格数据'
+        #将vcpkg_port_info逐行添加到表格当中 
 
-    # 将表格数据转换为csv格式，并作为附件添加到邮件中
-    csv_data = df.to_csv(index=False)
-    attachment = MIMEApplication(csv_data.encode(), Name='vcpkg.csv')
-    attachment['Content-Disposition'] = 'attachment; filename="vcpkg.csv"'
-    msg.attach(attachment)
+        vcpkg_version_df = pd.DataFrame()
+        upstream_version_df = pd.DataFrame()
 
-    # 使用SMTP_SSL发送邮件
-    with smtplib.SMTP_SSL(smtp_server, smtp_port) as smtp:
-        smtp.login(username, password)
-        smtp.send_message(msg)
+        for port_name in port_names:
+            vcpkg_data_list, xml_data_list = get_port_info_vcpkg(port_name)
+            upstream_data_list = get_upstream_version(url,vcpkg_headers,port_name)
+
+            port_df = pd.DataFrame(vcpkg_data_list, columns=['Name', 'Version', 'Version_type', 'Upstream_version'])
+            upstream_df = pd.DataFrame(upstream_data_list, columns=['Name', 'Version', 'Commit'])
+            port_df['Upstream_version'] = upstream_df['Version']
+         #  port_df['Update'] = port_df['Version'] == port_df['Upstream_version']
+
+            vcpkg_version_df = pd.concat([vcpkg_version_df, port_df], ignore_index=True)
+            upstream_version_df = pd.concat([upstream_version_df, upstream_df], ignore_index=True)
+
+            # 将主 DataFrame 每行数据逐行追加到 CSV 文件
+            with open('vcpkg.csv', 'a') as f:
+                port_df.to_csv(f, header=f.tell() == 0, index=False)
+            with open('upstream.csv', 'a') as f:
+                upstream_df.to_csv(f, header=f.tell() == 0, index=False)
+
+            # 将两个 DataFrame 输出到同一个 Excel 文件的不同工作表中
+            with pd.ExcelWriter('versions.xlsx') as writer:
+                vcpkg_version_df.to_excel(writer, sheet_name='vcpkg_version', index=False)
+                upstream_version_df.to_excel(writer, sheet_name='upstream_version', index=False)
+
+            print(f"{port_names.index(port_name)+1}/{len(port_names)}: {str(port_name)} Done")
+            print("vcpkg_version:")
+            print(vcpkg_version_df)
+            print("\nupstream_version:")
+            print(upstream_version_df)
+
+            #集中处理version数据
+            vcpkg_version_df, upstream_version_df = compare_version(vcpkg_version_df, upstream_version_df)
+
+            #网站后台表格
+            
+            total_data.extend(xml_data_list)
+        
+        xml_df = json.dumps(total_data, indent=4, ensure_ascii=False)
+        with open('data.json', 'a', encoding='utf-8') as file:
+                file.write(xml_df)
+
+        #最终处理version.xlsx
+        # 创建一个临时文件，用于保存原始的 Excel 文件
+        shutil.copyfile('versions.xlsx', 'temp_versions.xlsx')
+
+        # 加载 'vcpkg_version' 工作表，并进行修改
+        df = pd.read_excel('versions.xlsx', sheet_name='vcpkg_version')
+        df['Update'] = df['Update'].replace(0, 'FALSE')
+
+        # 创建一个新的 Excel 文件
+        with pd.ExcelWriter('versions.xlsx', engine='openpyxl') as writer:
+            df.to_excel(writer, sheet_name='vcpkg_version', index=False)
+
+        # 加载原始的 Excel 文件
+        book = openpyxl.load_workbook('temp_versions.xlsx')
+
+        with pd.ExcelWriter('versions.xlsx', engine='openpyxl', mode='a') as writer:
+            for sheet in book.sheetnames:
+                if sheet == 'vcpkg_version':
+                    continue  # Skip the modified sheet
+
+                df = pd.read_excel('temp_versions.xlsx', sheet_name=sheet)
+                df.to_excel(writer, sheet_name=sheet, index=False)
+
+        # 删除临时文件
+        os.remove('temp_versions.xlsx')
+
+    else:
+        print("Failed to get ports names")
+elif response.status_code == 401:
+    print('你无权访问vcpkg的官网：{}'.format(url))
 else:
     print("Failed to retrieve port links.")
+
+print("运行结束！！！！！！！！！！！！！！！！！")
+
+# 发送邮件
+"""
+print("开始发送邮件")
+script_dir = os.path.dirname(os.path.abspath(__file__))
+attachment_path = os.path.join(script_dir, 'versions.xlsx')
+subject='Vcpkg Verison Check'
+#to='vcpkgcti@microsoft.com'
+to='1433351828@qq.com'
+#sender='frank <v-frankxie@microsoft.com>'
+send_email(subject, to, attachment_path, sender=None)
+"""
